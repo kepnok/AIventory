@@ -3,6 +3,7 @@ import { signinSchema, signupSchema } from "./schema/auth.schema";
 import jwt from "jsonwebtoken";
 import { Prisma, PrismaClient } from "../generated/prisma";
 import dotenv from "dotenv";
+import { authMiddleware, authRequest } from "./middlewares/auth.middleware";
 
 const app = express();
 dotenv.config();
@@ -46,7 +47,7 @@ app.post("/api/signup", async (req: Request, res: Response) => {
 			});
 		} else {
 			res.status(500).json({
-				message: "internal server error",
+				message: "Internal server error",
 			});
 		}
 	}
@@ -73,10 +74,9 @@ app.post("/api/signin", async (req: Request, res: Response) => {
 		});
 
 		if (user) {
-			
 			const token = jwt.sign(
 				{
-					id: user.id
+					id: user.id,
 				},
 				process.env.JWT_SECRET as string
 			);
@@ -96,8 +96,10 @@ app.post("/api/signin", async (req: Request, res: Response) => {
 	}
 });
 
+app.post("/api/products", authMiddleware, async (req:Request, res: Response) => {
+	
+	
 
-
-
+})
 
 app.listen(3000, () => console.log("server running on port 3000"));

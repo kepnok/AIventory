@@ -5,11 +5,11 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export interface authRequest extends Request {
-	userId: number;
+	userID: number;
 }
 
 export function authMiddleware(
-	req: authRequest,
+	req: Request,
 	res: Response,
 	next: NextFunction
 ) {
@@ -27,7 +27,7 @@ export function authMiddleware(
 		) as jwt.JwtPayload;
 
 		if (decoded) {
-			req.userId = decoded.id;
+			(req as authRequest).userID = decoded.id;
 			next();
 		} else {
 			res.json(401).json({
