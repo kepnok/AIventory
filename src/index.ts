@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { Prisma, PrismaClient } from "../generated/prisma";
 import dotenv from "dotenv";
 import { authMiddleware, authRequest } from "./middlewares/auth.middleware";
+import { productsSchema, productstype } from "./schema/products.schema";
 
 const app = express();
 dotenv.config();
@@ -21,7 +22,7 @@ app.post("/api/signup", async (req: Request, res: Response) => {
 		});
 		return;
 	}
-	const { username, password, email } = result.data;
+	const { username, password, email, warehouseId } = result.data;
 
 	try {
 		await client.users.create({
@@ -29,13 +30,14 @@ app.post("/api/signup", async (req: Request, res: Response) => {
 				username,
 				password,
 				email,
+				warehouseId,
 			},
 		});
 		res.status(201).json({
 			message: "user created sucessfully",
 		});
 	} catch (err) {
-		console.log("error created user", err);
+		console.log("error creating user", err);
 
 		if (
 			err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -77,6 +79,7 @@ app.post("/api/signin", async (req: Request, res: Response) => {
 			const token = jwt.sign(
 				{
 					id: user.id,
+					warehouseId: user.warehouseId,
 				},
 				process.env.JWT_SECRET as string
 			);
@@ -96,10 +99,51 @@ app.post("/api/signin", async (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/products", authMiddleware, async (req:Request, res: Response) => {
-	
-	
+app.post(
+	"/api/products",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		req.body as productstype;
+		const result = productsSchema.safeParse((req as authRequest).body);
 
-})
+		if (!result.success) {
+			res.status(400).json({
+				message: "validation error",
+				error: result.error.format(),
+			});
+			return;
+		}
+		const { name, sku, restockLevel, warehouseId } = result.data;
+
+		try {
+			await client.products.create({
+				data: {
+					name,
+					sku,
+					restockLevel,
+					warehouseId,
+				},
+			});
+
+			res.status(200).json({
+				message: "product added succesfully",
+			});
+		} catch (err) {
+			console.log(err);
+			if (
+				err instanceof Prisma.PrismaClientKnownRequestError &&
+				err.code == "P2002"
+			) {
+				res.status(400).json({
+					message: "product wtih this sku already exists",
+				});
+			} else {
+				res.status(500).json({
+					message: "Internal server error",
+				});
+			}
+		}
+	}
+);
 
 app.listen(3000, () => console.log("server running on port 3000"));

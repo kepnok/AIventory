@@ -15,39 +15,41 @@ datasource db {
 }
 
 model Users {
-  id         Int      @default(autoincrement())   @id
-  username   String   @unique
-  password   String 
-  email      String   @unique 
+  id          Int        @id @default(autoincrement())
+  username    String     @unique
+  email       String     @unique
+  password    String
+  warehouseId Int
+  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id])
 }
 
+
 model Products {
-  id            Int          @id @default(autoincrement())
-  sku           String       @unique 
-  name          String
-  quantity      Int
-  reorderLevel  Int
-  expiryDate    DateTime?
-  lastRestocked DateTime
-  warehouseId   Int
-  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
-  restocks      RestockLog[] 
+  id           Int             @id @default(autoincrement())
+  name         String
+  sku          String          @unique
+  restockLevel Int
+  warehouseId  Int
+  warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
+  batches      ProductBatch[]
 }
+
 
 model Warehouse {
   id         Int        @id @default(autoincrement())
-  name       String
-  address    String     @unique 
+  address    String     @unique
   latitude   Float
   longitude  Float
   products   Products[]
+  users      Users[]
 }
 
-model RestockLog {
-  id           Int       @id @default(autoincrement())
-  productId    Int
-  product      Products  @relation(fields: [productId], references: [id])
-  quantity     Int
-  restockedAt  DateTime  @default(now())
-  triggeredBy  String   
+model ProductBatch {
+  id          Int       @id @default(autoincrement())
+  productId   Int
+  product     Products   @relation(fields: [productId], references: [id])
+  quantity    Int
+  expiryDate  DateTime?
+  restockedAt DateTime  @default(now())
+  editedBy    String    
 }

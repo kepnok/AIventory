@@ -6,6 +6,7 @@ dotenv.config();
 
 export interface authRequest extends Request {
 	userID: number;
+	warehouseId: number;
 }
 
 export function authMiddleware(
@@ -28,6 +29,7 @@ export function authMiddleware(
 
 		if (decoded) {
 			(req as authRequest).userID = decoded.id;
+			(req as authRequest).warehouseId = decoded.warehouseId;
 			next();
 		} else {
 			res.json(401).json({
