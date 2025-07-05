@@ -3,6 +3,7 @@ import { signinSchema, signupSchema } from "./schema/auth.schema";
 import jwt from "jsonwebtoken";
 import { Prisma, PrismaClient } from "../generated/prisma";
 import dotenv from "dotenv";
+import cors from "cors";
 import { authMiddleware, authRequest } from "./middlewares/auth.middleware";
 import { productsSchema, productstype } from "./schema/products.schema";
 import { productBatchSchema } from "./schema/batch.schema";
@@ -11,6 +12,8 @@ const app = express();
 dotenv.config();
 
 app.use(express.json());
+app.use(cors());
+
 const client = new PrismaClient();
 
 app.post("/api/signup", async (req: Request, res: Response) => {
@@ -143,14 +146,14 @@ app.post("/api/products", authMiddleware, async (req: Request, res: Response) =>
 app.get("/api/products", authMiddleware, async (req: Request, res: Response) => {
 	
 	try {
-		const details = await client.products.findMany({
+		const data = await client.products.findMany({
 			where: {
 				warehouseId: (req as authRequest).body.warehouseId
 			}
 		});
 		
 		res.status(200).json({
-			products: details
+			data
 		})
 
 	} catch(err) {
@@ -195,5 +198,30 @@ app.post("/api/restock/:id", authMiddleware, async (req: Request, res: Response)
 		});
 	}
 });
+
+app.get("api/products/:id", authMiddleware, async (req: Request, res: Response) => {
+	
+	const id = parseInt(req.params.id);
+	try {
+
+		const data = await client.productBatch.findMany({
+			where: {
+				id
+			}
+		});
+		res.status(200).json({
+			data
+		})
+	} catch (err) {
+		res.status(500).json({
+			message: "Internal server error"
+		})
+	}
+});
+
+app.get("/api/total/:id", authMiddleware, async (req: Request, res: Response) => {
+
+});
+
 
 app.listen(3000, () => console.log("server running on port 3000"));
