@@ -4,7 +4,7 @@ export const productsSchema = z.object({
 	name: z.string(),
 	sku: z.string().toUpperCase(),
 	restockLevel: z.number(),
-	warehouseId: z.number()
-})
+	warehouseId: z.number(),
+});
 
-export type productstype = z.infer<typeof productsSchema>
+export type productstype = z.infer<typeof productsSchema>;

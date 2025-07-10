@@ -7,6 +7,7 @@ import cors from "cors";
 import { authMiddleware, authRequest } from "./middlewares/auth.middleware";
 import { productsSchema, productstype } from "./schema/products.schema";
 import { productBatchSchema } from "./schema/batch.schema";
+import { runConversation } from "./ai-stuff/agent";
 
 const app = express();
 dotenv.config();
@@ -219,8 +220,24 @@ app.get("api/products/:id", authMiddleware, async (req: Request, res: Response) 
 	}
 });
 
-app.get("/api/total/:id", authMiddleware, async (req: Request, res: Response) => {
 
+app.post("/api/ai", authMiddleware, async (req: Request, res: Response) => {
+	const prompt = (req as authRequest).body.prompt;
+	try {
+		const response = await runConversation(prompt);
+
+	if(response){
+		res.json(JSON.parse(response));
+	}
+	else res.json({
+		message: "error occured in the agent-handler"
+	})
+	} catch(err) {
+		console.log(err);
+		res.status(500).json({
+			message: "internal server error at ai endpoint"
+		})
+	}
 });
 
 
