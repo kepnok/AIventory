@@ -1,6 +1,6 @@
 import { Groq } from "groq-sdk";
 import dotenv from "dotenv";
-import {  PrismaClient } from "../../generated/prisma";
+import { PrismaClient } from "../../generated/prisma";
 import { systemPrompt } from "./systemPrompt";
 
 dotenv.config();
@@ -12,78 +12,92 @@ const client = new Groq({
 const MODEL = "llama-3.3-70b-versatile";
 
 async function getTotalStock({ sku }: { sku: string }) {
-	const product = await prismaClient.products.findUnique({
-		where: {
-			sku,
-		},
-		include: {
-			batches: true,
-		},
-	});
+	try {
+		const product = await prismaClient.products.findUnique({
+			where: {
+				sku,
+			},
+			include: {
+				batches: true,
+			},
+		});
 
-	const total =
-		product?.batches.reduce((sum, batch) => sum + batch.quantity, 0) || 0;
-	return JSON.stringify({ total });
+		const total =
+			product?.batches.reduce((sum, batch) => sum + batch.quantity, 0) || 0;
+		return JSON.stringify({ total });
+	} catch (err) {
+		console.log("error in getTotalStock" + err);
+
+		return JSON.stringify({
+			error: "some error occured in the database",
+		});
+	}
 }
 
 async function shouldRestock({ sku }: { sku: string }) {
-	const product = await prismaClient.products.findUnique({
-		where: {
-			sku,
-		},
-		include: {
-			batches: true,
-		},
-	});
+	try {
+		const product = await prismaClient.products.findUnique({
+			where: {
+				sku,
+			},
+			include: {
+				batches: true,
+			},
+		});
 
-	const total =
-		product?.batches.reduce((sum, batch) => sum + batch.quantity, 0) || 0;
+		const total =
+			product?.batches.reduce((sum, batch) => sum + batch.quantity, 0) || 0;
 
-	if (
-		product &&
-		typeof product.restockLevel === "number" &&
-		total < product.restockLevel
-	) {
-		return JSON.stringify({ verdict: true });
-	} else {
-		return JSON.stringify({ verdict: false });
+		if (
+			product &&
+			typeof product.restockLevel === "number" &&
+			total < product.restockLevel
+		) {
+			return JSON.stringify({ verdict: true });
+		} else {
+			return JSON.stringify({ verdict: false });
+		}
+	} catch (err) {
+		console.log("error in shouldRestock" + err);
+
+		return JSON.stringify({
+			error: "error occoured in the database",
+		});
 	}
 }
 
-async function getExpiringSoon({
-	sku,
-	withinDays = 30,
-}: {
-	sku: string;
-	withinDays?: number;
-}) {
-	const now = new Date();
-	const future = new Date();
-	future.setDate(now.getDate() + withinDays);
+async function getExpiryDate({ sku }: { sku: string }) {
+	try {
+		const product = await prismaClient.products.findUnique({
+			where: { sku },
+			include: { batches: true },
+		});
 
-	const product = await prismaClient.products.findUnique({
-		where: { sku },
-		include: { batches: true },
-	});
+		if (!product) {
+			return JSON.stringify({ error: "product not found" });
+		}
 
-	if (!product) {
-		return JSON.stringify({ error: "product not found" });
+		return JSON.stringify({
+			sku,
+			productName: product.name,
+			batches: product.batches.map(({ id, expiryDate, quantity }) => ({
+				id,
+				expiryDate,
+				quantity,
+			})),
+		});
+	} catch (err) {
+
+		console.log("error in getExpiryDate" + err);
+
+		return JSON.stringify({
+			error: "error occured in the database"
+		})
 	}
+}
 
-	const expiringSoon = product.batches.filter(
-		(batch) => batch.expiryDate && batch.expiryDate <= future
-	);
-
-	return JSON.stringify({
-		sku,
-		productName: product.name,
-		expiringCount: expiringSoon.length,
-		expiringBatches: expiringSoon.map(({ id, expiryDate, quantity }) => ({
-			id,
-			expiryDate,
-			quantity,
-		})),
-	});
+function stripFunctionTags(text: string): string {
+	return text.replace(/<function=.*?>/g, "").replace(/<\/function>/g, "");
 }
 
 export async function runConversation(userPrompt: string) {
@@ -140,9 +154,9 @@ export async function runConversation(userPrompt: string) {
 		{
 			type: "function",
 			function: {
-				name: "getExpiringSoon",
+				name: "getExpiryDate",
 				description:
-					"Find if a product is going to expire soon within a given number of days by looking it up using the sku.",
+					"Get all batches of a product along with their expiry dates and quantities using the SKU. This helps the AI determine if the product is expiring soon.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -151,11 +165,6 @@ export async function runConversation(userPrompt: string) {
 							description:
 								"SKU that uniquely identifies a product in the warehouse.",
 						},
-						withinDays: {
-							type: "number",
-							description: 
-								"Number of days which the expiry date is to be checked. Default value is within 30 days if no input from user"
-						}
 					},
 					required: ["sku"],
 				},
@@ -179,7 +188,7 @@ export async function runConversation(userPrompt: string) {
 		const availableFunctions = {
 			getTotalStock,
 			shouldRestock,
-			getExpiringSoon
+			getExpiryDate,
 		};
 
 		messages.push(responseMessage);
@@ -202,8 +211,8 @@ export async function runConversation(userPrompt: string) {
 			messages: messages,
 		});
 
-		return secondResponse.choices[0].message.content;
+		return stripFunctionTags(secondResponse.choices[0].message.content ?? "");
 	}
 
-	return responseMessage.content;
+	return stripFunctionTags(responseMessage.content ?? "");
 }

@@ -104,141 +104,150 @@ app.post("/api/signin", async (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/products", authMiddleware, async (req: Request, res: Response) => {
-	req.body as productstype;
-	const result = productsSchema.safeParse((req as authRequest).body);
-	if (!result.success) {
-		res.status(400).json({
-			message: "validation error",
-			error: result.error.format(),
-		});
-		return;
-	}
-	const { name, sku, restockLevel, warehouseId } = result.data;
-	try {
-		await client.products.create({
-			data: {
-				name,
-				sku,
-				restockLevel,
-				warehouseId,
-			},
-		});
-		res.status(200).json({
-			message: "product added succesfully",
-		});
-	} catch (err) {
-		console.log(err);
-		if (
-			err instanceof Prisma.PrismaClientKnownRequestError &&
-			err.code == "P2002"
-		) {
+app.post(
+	"/api/products",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		req.body as productstype;
+		const result = productsSchema.safeParse((req as authRequest).body);
+		if (!result.success) {
 			res.status(400).json({
-				message: "product wtih this sku already exists",
+				message: "validation error",
+				error: result.error.format(),
 			});
-		} else {
+			return;
+		}
+		const { name, sku, restockLevel, warehouseId } = result.data;
+		try {
+			await client.products.create({
+				data: {
+					name,
+					sku,
+					restockLevel,
+					warehouseId,
+				},
+			});
+			res.status(200).json({
+				message: "product added succesfully",
+			});
+		} catch (err) {
+			console.log(err);
+			if (
+				err instanceof Prisma.PrismaClientKnownRequestError &&
+				err.code == "P2002"
+			) {
+				res.status(400).json({
+					message: "product wtih this sku already exists",
+				});
+			} else {
+				res.status(500).json({
+					message: "Internal server error",
+				});
+			}
+		}
+	}
+);
+
+app.get(
+	"/api/products",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		try {
+			const data = await client.products.findMany({
+				where: {
+					warehouseId: (req as authRequest).body.warehouseId,
+				},
+			});
+
+			res.status(200).json({
+				data,
+			});
+		} catch (err) {
+			res.status(500).json({
+				message: "internal server error",
+			});
+		}
+	}
+);
+
+app.post(
+	"/api/restock/:id",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		const productId = parseInt(req.params.id);
+		const result = productBatchSchema.safeParse((req as authRequest).body);
+
+		if (!result.success) {
+			res.status(400).json({
+				meassage: "validation error",
+				error: result.error.format(),
+			});
+			return;
+		}
+
+		const { quantity, expiryDate, editedBy } = result.data;
+
+		try {
+			await client.productBatch.create({
+				data: {
+					productId,
+					quantity,
+					expiryDate,
+					editedBy,
+				},
+			});
+
+			res.status(200).json({
+				message: "product batch updated",
+			});
+		} catch (err) {
+			console.log("error while updateing product batch log", err);
+			res.status(500).json({
+				message: "internal server error",
+			});
+		}
+	}
+);
+
+app.get(
+	"api/products/:id",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		const id = parseInt(req.params.id);
+		try {
+			const data = await client.productBatch.findMany({
+				where: {
+					id,
+				},
+			});
+			res.status(200).json({
+				data,
+			});
+		} catch (err) {
 			res.status(500).json({
 				message: "Internal server error",
 			});
 		}
 	}
-});
-
-app.get("/api/products", authMiddleware, async (req: Request, res: Response) => {
-	
-	try {
-		const data = await client.products.findMany({
-			where: {
-				warehouseId: (req as authRequest).body.warehouseId
-			}
-		});
-		
-		res.status(200).json({
-			data
-		})
-
-	} catch(err) {
-		res.status(500).json({
-			message: "internal server error"
-		})
-	}
-});
-
-app.post("/api/restock/:id", authMiddleware, async (req: Request, res: Response) => {
-	const productId = parseInt(req.params.id);
-	const result = productBatchSchema.safeParse((req as authRequest).body);
-
-	if(!result.success){
-		res.status(400).json({
-			meassage: "validation error",
-			error: result.error.format()
-		});
-		return;
-	}
-
-	const { quantity, expiryDate, editedBy } = result.data;
-
-	try {
-		await client.productBatch.create({
-			data: {
-				productId,
-				quantity,
-				expiryDate,
-				editedBy
-			}
-		});
-
-		res.status(200).json({
-			message: "product batch updated"
-		});
-
-	} catch(err) {
-		console.log("error while updateing product batch log", err);
-		res.status(500).json({
-			message: "internal server error"
-		});
-	}
-});
-
-app.get("api/products/:id", authMiddleware, async (req: Request, res: Response) => {
-	
-	const id = parseInt(req.params.id);
-	try {
-
-		const data = await client.productBatch.findMany({
-			where: {
-				id
-			}
-		});
-		res.status(200).json({
-			data
-		})
-	} catch (err) {
-		res.status(500).json({
-			message: "Internal server error"
-		})
-	}
-});
-
+);
 
 app.post("/api/ai", authMiddleware, async (req: Request, res: Response) => {
 	const prompt = (req as authRequest).body.prompt;
+	const response = await runConversation(prompt);
 	try {
-		const response = await runConversation(prompt);
-
-	if(response){
-		res.json(JSON.parse(response));
-	}
-	else res.json({
-		message: "error occured in the agent-handler"
-	})
-	} catch(err) {
+		if (response) {
+			res.status(200).json(JSON.parse(response));
+		} else
+			res.json({
+				message: "error occured in the agent-handler",
+			});
+	} catch (err) {
 		console.log(err);
 		res.status(500).json({
-			message: "internal server error at ai endpoint"
-		})
+			error: "Malformed response from AI",
+			raw: response,
+		});
 	}
 });
-
 
 app.listen(3000, () => console.log("server running on port 3000"));
