@@ -155,7 +155,7 @@ app.get(
 		try {
 			const data = await client.products.findMany({
 				where: {
-					warehouseId: (req as authRequest).body.warehouseId,
+					warehouseId: (req as authRequest).warehouseId,
 				},
 			});
 
@@ -163,6 +163,7 @@ app.get(
 				data,
 			});
 		} catch (err) {
+			console.log(err);
 			res.status(500).json({
 				message: "internal server error",
 			});
@@ -249,5 +250,42 @@ app.post("/api/ai", authMiddleware, async (req: Request, res: Response) => {
 		});
 	}
 });
+
+app.get(
+	"/api/products/withQuantity",
+	authMiddleware,
+	async (req: Request, res: Response) => {
+		try {
+			const products = await client.products.findMany({
+				where: {
+					warehouseId: (req as authRequest).warehouseId,
+				},
+				include: {
+					batches: true,
+				},
+			});
+
+			const withQuantity = products.map((product) => {
+				const totalQuantity = product.batches.reduce(
+					(sum, batch) => sum + batch.quantity,
+					0
+				);
+
+				return {
+					id: product.id,
+					name: product.name,
+					sku: product.sku,
+					restockLevel: product.restockLevel,
+					quantity: totalQuantity,
+				};
+			});
+
+			res.status(200).json({ data: withQuantity });
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({ message: "internal server error" });
+		}
+	}
+);
 
 app.listen(3000, () => console.log("server running on port 3000"));
