@@ -211,14 +211,14 @@ app.post(
 );
 
 app.get(
-	"api/products/:id",
+	"/api/products/:id",
 	authMiddleware,
 	async (req: Request, res: Response) => {
 		const id = parseInt(req.params.id);
 		try {
 			const data = await client.productBatch.findMany({
 				where: {
-					id,
+					productId: id,
 				},
 			});
 			res.status(200).json({
@@ -252,7 +252,7 @@ app.post("/api/ai", authMiddleware, async (req: Request, res: Response) => {
 });
 
 app.get(
-	"/api/products/withQuantity",
+	"/api/totalProducts",
 	authMiddleware,
 	async (req: Request, res: Response) => {
 		try {
