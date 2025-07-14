@@ -117,7 +117,8 @@ app.post(
 			});
 			return;
 		}
-		const { name, sku, restockLevel, warehouseId } = result.data;
+		const { name, sku, restockLevel } = result.data;
+		const warehouseId = (req as authRequest).warehouseId;
 		try {
 			await client.products.create({
 				data: {

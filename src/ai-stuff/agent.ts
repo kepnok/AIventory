@@ -87,12 +87,75 @@ async function getExpiryDate({ sku }: { sku: string }) {
 			})),
 		});
 	} catch (err) {
-
 		console.log("error in getExpiryDate" + err);
 
 		return JSON.stringify({
-			error: "error occured in the database"
-		})
+			error: "error occured in the database",
+		});
+	}
+}
+
+async function createProduct({
+	name,
+	sku,
+	restockLevel,
+	warehouseId,
+}: {
+	name: string;
+	sku: string;
+	restockLevel: string;
+	warehouseId: string;
+}) {
+	const restock = parseInt(restockLevel);
+	const id = parseInt(warehouseId);
+	try {
+		await prismaClient.products.create({
+			data: {
+				name,
+				sku,
+				restockLevel: restock,
+				warehouseId: id,
+			},
+		});
+	} catch (err) {
+		console.error("error in createProduct:", err);
+		return JSON.stringify({ error: "failed to create product" });
+	}
+
+	return JSON.stringify({ sucess: true });
+}
+
+async function createProductBatch({
+	sku,
+	quantity,
+	expiryDate,
+}: {
+	sku: string;
+	quantity: string;
+	expiryDate: string;
+}) {
+	try {
+		const product = await prismaClient.products.findUnique({
+			where: { sku },
+		});
+
+		if (!product) {
+			return JSON.stringify({ error: `No product found with SKU ${sku}` });
+		}
+
+		await prismaClient.productBatch.create({
+			data: {
+				productId: product.id,
+				quantity: parseInt(quantity),
+				expiryDate: expiryDate ? new Date(expiryDate) : null,
+				editedBy: "ai",
+			},
+		});
+
+		return JSON.stringify({ success: true });
+	} catch (err) {
+		console.error("Error in createProductBatch:", err);
+		return JSON.stringify({ error: "Failed to create product batch" });
 	}
 }
 
@@ -170,6 +233,65 @@ export async function runConversation(userPrompt: string) {
 				},
 			},
 		},
+		{
+			type: "function",
+			function: {
+				name: "createProduct",
+				description:
+					"Add a new product to the database. This will make a new listing for a product in the database with 0 inital quanitity.",
+				parameters: {
+					type: "object",
+					properties: {
+						sku: {
+							type: "string",
+							description:
+								"SKU that uniquely identifies a product in the warehouse.",
+						},
+						name: {
+							type: "string",
+							description: "Name of the product.",
+						},
+						restockLevel: {
+							type: "string",
+							description:
+								"Restock level. If the quantity goes below this, the product will need to be restocked.",
+						},
+						warehouseId: {
+							type: "string",
+							description:
+								"WarehouseId to identify the warehouse this product is listed under",
+						},
+					},
+					required: ["sku", "name", "restockLevel", "warehouseId"],
+				},
+			},
+		},
+		{
+			type: "function",
+			function: {
+				name: "createProductBatch",
+				description:
+					"Add a new batch for a product using its SKU. You must provide quantity and editor.",
+				parameters: {
+					type: "object",
+					properties: {
+						sku: {
+							type: "string",
+							description: "SKU of the product",
+						},
+						quantity: {
+							type: "string",
+							description: "Quantity in this batch",
+						},
+						expiryDate: {
+							type: "string",
+							description: "Expiry date (optional, ISO 8601 format)",
+						},
+					},
+					required: ["sku", "quantity", "expiryDate"],
+				},
+			},
+		},
 	];
 
 	const response = await client.chat.completions.create({
@@ -189,12 +311,14 @@ export async function runConversation(userPrompt: string) {
 			getTotalStock,
 			shouldRestock,
 			getExpiryDate,
+			createProduct,
 		};
 
 		messages.push(responseMessage);
 
 		for (const toolCall of toolCalls) {
-			const functionName = toolCall.function.name as keyof typeof availableFunctions;
+			const functionName = toolCall.function
+				.name as keyof typeof availableFunctions;
 			const functionToCall = availableFunctions[functionName];
 			const functionArgs = JSON.parse(toolCall.function.arguments);
 			const functionResponse = await functionToCall(functionArgs);
