@@ -2,6 +2,7 @@ import { Groq } from "groq-sdk";
 import dotenv from "dotenv";
 import { PrismaClient } from "../../generated/prisma";
 import { systemPrompt } from "./systemPrompt";
+import { parseNaturalDate } from "./dateHandler";
 
 dotenv.config();
 const prismaClient = new PrismaClient();
@@ -135,19 +136,19 @@ async function createProductBatch({
 	expiryDate: string;
 }) {
 	try {
-		const product = await prismaClient.products.findUnique({
-			where: { sku },
-		});
-
-		if (!product) {
+		const product = await prismaClient.products.findUnique({ where: { sku } });
+		if (!product)
 			return JSON.stringify({ error: `No product found with SKU ${sku}` });
-		}
+
+		const parsedDate = parseNaturalDate(expiryDate);
+		if (!parsedDate)
+			return JSON.stringify({ error: "Invalid or unrecognized expiry date" });
 
 		await prismaClient.productBatch.create({
 			data: {
 				productId: product.id,
 				quantity: parseInt(quantity),
-				expiryDate: expiryDate ? new Date(expiryDate) : null,
+				expiryDate: parsedDate,
 				editedBy: "ai",
 			},
 		});
@@ -312,7 +313,7 @@ export async function runConversation(userPrompt: string) {
 			shouldRestock,
 			getExpiryDate,
 			createProduct,
-			createProductBatch
+			createProductBatch,
 		};
 
 		messages.push(responseMessage);
