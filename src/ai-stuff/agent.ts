@@ -312,6 +312,7 @@ export async function runConversation(userPrompt: string) {
 			shouldRestock,
 			getExpiryDate,
 			createProduct,
+			createProductBatch
 		};
 
 		messages.push(responseMessage);
