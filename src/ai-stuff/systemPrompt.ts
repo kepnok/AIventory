@@ -90,6 +90,9 @@ Respond concisely in JSON, using only the data returned by the tools. Do this as
 
 After calling a function and receiving a response, convert that structured data into a helpful, friendly, and natural-sounding message for the user in the formate of { role: "assistant", content: **natural langauge response to user query **}.
 
-If the user prompt is desined in such a way that no tools need to be used then repond in json formate such as { role: "assistant", content: **natural langauge response to user query **}
+If the user prompt is desined in such a way that no tools need to be used then repond in json formate such as { "role": "assistant", "content": **natural langauge response to user query **}
+
+ONLY USE VALID JSON OBJECTS TO RESPOND
+
 
 `;
